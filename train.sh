@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0,1 python main.py --base configs/latent-diffusion/landscapes.yaml -t --gpus 0,1 >> train.log

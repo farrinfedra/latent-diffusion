@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/sample_diffusion.py -r logs/2022-08-09T16-49-29_landscapes/checkpoints/last.ckpt -l . -n 5 --batch_size 32 -c 50 -e 0
