@@ -1,0 +1,10 @@
+**/outputs2/**
+**/outputs/**
+logs
+**/.log/**
+dataset/lhq_256
+LHQ256.zip
+dataset
+models
+**/__pycache__/**
+**/.ipynb_checkpoints/**
