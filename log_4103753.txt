@@ -1,0 +1,6 @@
+GPU available: True, used: True
+TPU available: False, using: 0 TPU cores
+Multi-processing is handled by Slurm.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+initializing ddp: GLOBAL_RANK: 0, MEMBER: 1/2
+slurmstepd: error: *** JOB 4103753 ON ai03 CANCELLED AT 2022-08-24T16:59:55 ***

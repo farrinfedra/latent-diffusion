@@ -65,8 +65,8 @@ model:
 data:
   target: main.DataModuleFromConfig
   params:
-    batch_size: 48
-    num_workers: 5
+    batch_size: 8
+    num_workers: 2
     wrap: False
     train:
       target: ldm.data.landscape.landscapeTrain

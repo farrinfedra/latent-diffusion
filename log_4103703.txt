@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "main.py", line 436, in <module>
+    model = instantiate_from_config(config.model)
+  File "main.py", line 119, in instantiate_from_config
+    return get_obj_from_str(config["target"])(**config.get("params", dict()))
+  File "main.py", line 22, in get_obj_from_str
+    return getattr(importlib.import_module(module, package=None), cls)
+  File "/kuacc/users/bbiner21/.conda/envs/taming/lib/python3.8/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 961, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 961, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 973, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'ldm.models'

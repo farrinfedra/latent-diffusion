@@ -4,6 +4,17 @@ from functools import partial
 
 from ldm.modules.x_transformer import Encoder, TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 
+import librosa
+import numpy as np 
+
+import sys
+sys.path.append('/kuacc/users/bbiner21/Github/AudioCLIP')
+
+print(sys.path)
+
+from modelA import AudioCLIP
+from utils_audioclip.transforms import ToTensor1D
+
 
 class AbstractEncoder(nn.Module):
     def __init__(self):
@@ -86,9 +97,11 @@ class BERTEmbedder(AbstractEncoder):
                                               attn_layers=Encoder(dim=n_embed, depth=n_layer),
                                               emb_dropout=embedding_dropout)
 
+        
     def forward(self, text):
         if self.use_tknz_fn:
             tokens = self.tknz_fn(text)#.to(self.device)
+#             print(tokens.shape)
         else:
             tokens = text
         z = self.transformer(tokens, return_embeddings=True)
@@ -129,3 +142,26 @@ class SpatialRescaler(nn.Module):
 
     def encode(self, x):
         return self(x)
+
+    
+    
+class AudioCLIPEncoder(AbstractEncoder):
+    def __init__(self, device="cuda",ckpt_path = "/kuacc/users/bbiner21/Github/AudioCLIP/assets/AudioCLIP-Full-Training.pt"):
+        
+        super().__init__()
+        
+        self.model = AudioCLIP(pretrained=ckpt_path).to(device)
+        self.audio_tranforms = ToTensor1D()
+        
+    def forward(self, track):
+        track = track.unsqueeze(1) # bs, 1, 1024(embed_dim ofa audioclip)
+        
+        ((audio_features, _, _), _), _ = self.model(audio=track)
+        
+        return audio_features.unsqueeze(1)
+    
+    def encode(self, track):
+        return self(track)    
+
+        
+        

@@ -61,14 +61,13 @@ class LSUNBase(Dataset):
 
 class LSUNChurchesTrain(LSUNBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/lsun/church_outdoor_train.txt", data_root="data/lsun/churches", **kwargs)
+        super().__init__(txt_file="data/lsun/church_outdoor_train.txt", data_root="/kuacc/users/bbiner21/Github/lsun/out", **kwargs)
 
 
 class LSUNChurchesValidation(LSUNBase):
     def __init__(self, flip_p=0., **kwargs):
-        super().__init__(txt_file="data/lsun/church_outdoor_val.txt", data_root="data/lsun/churches",
+        super().__init__(txt_file="data/lsun/church_outdoor_val.txt", data_root="/kuacc/users/bbiner21/Github/lsun/out",
                          flip_p=flip_p, **kwargs)
-
 
 class LSUNBedroomsTrain(LSUNBase):
     def __init__(self, **kwargs):

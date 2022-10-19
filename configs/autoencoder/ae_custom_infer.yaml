@@ -1,0 +1,57 @@
+model:
+  base_learning_rate: 4.5e-6
+  target: ldm.models.autoencoder.AutoencoderKL
+  params:
+    ckpt_path:  /kuacc/users/bbiner21/Github/latent-diffusion/logs/2022-09-19T12-42-42_ae_custom_kl_32-32-4/checkpoints/epoch=000007.ckpt 
+    #/kuacc/users/bbiner21/Github/latent-diffusion/models/first_stage_models/kl-f8/model.ckpt
+    # /kuacc/users/bbiner21/Github/latent-diffusion/logs/2022-09-19T12-42-42_ae_custom_kl_32-32-4/checkpoints/last.ckpt 
+    # /kuacc/users/bbiner21/Github/latent-diffusion/models/first_stage_models/kl-f8/model.ckpt
+    monitor: "val/rec_loss"
+    embed_dim: 4
+    lossconfig:
+      target: ldm.modules.losses.LPIPSWithDiscriminator
+      params:
+        disc_start: 50001
+        kl_weight: 0.000001
+        disc_weight: 0.5
+
+    ddconfig:
+      double_z: True
+      z_channels: 4
+      resolution: 256
+      in_channels: 3
+      out_ch: 3
+      ch: 128
+      ch_mult: [ 1,2,4,4 ]  # num_down = len(ch_mult)-1
+      num_res_blocks: 2
+      attn_resolutions: [ ]
+      dropout: 0.0
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 64
+    wrap: True
+    train:
+      target: ldm.data.cifar_dataset.CifarTrain  # ldm.data.cifar_dataset.CifarTrain
+      params:
+        size: 256
+        degradation: pil_nearest
+    validation:
+      target: ldm.data.cifar_dataset.CifarVal # ldm.data.cifar_dataset.CifarVal
+      params:
+        size: 256
+        degradation: pil_nearest
+
+lightning:
+  callbacks:
+    image_logger:
+      target: main.ImageLogger
+      params:
+        batch_frequency: 1000
+        max_images: 8
+        increase_log_steps: True
+
+  trainer:
+    benchmark: True
+    accumulate_grad_batches: 2

@@ -261,9 +261,19 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
+            
+#         print(f"embedding shape: {emb.shape}")
+        
         emb_out = self.emb_layers(emb).type(h.dtype)
+        
+#         print(f"embedding out shape: {emb_out.shape}")
+#         print(f"h shape is {h.shape}")
+        
+        
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+#         print(f"emb_out after reshape {emb_out.shape}")
+        
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
@@ -690,6 +700,10 @@ class UNetModel(nn.Module):
             conv_nd(dims, model_channels, n_embed, 1),
             #nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
         )
+            
+#         print(self.input_blocks)
+#         print(self.middle_block)
+#         print(self.output_blocks)
 
     def convert_to_fp16(self):
         """
@@ -721,8 +735,14 @@ class UNetModel(nn.Module):
         ), "must specify y if and only if the model is class-conditional"
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        
+#         print(f"t_emb shape is {t_emb.shape}")
+        
         emb = self.time_embed(t_emb)
+        
+#         print(f"emb shape is {emb.shape}")
 
+#         print(f"context in unet forward {context.shape}")
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
             emb = emb + self.label_emb(y)

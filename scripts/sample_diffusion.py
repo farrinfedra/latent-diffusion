@@ -76,15 +76,20 @@ def convsample_ddim(model, steps, shape, eta=1.0
 
 
 @torch.no_grad()
-def make_convolutional_sample(model, batch_size, vanilla=False, custom_steps=None, eta=1.0,):
+def make_convolutional_sample(model, batch_size, vanilla=False, custom_steps=None, eta=1.0, config=None):
 
 
     log = dict()
-
+    
     shape = [batch_size,
-             model.model.diffusion_model.in_channels,
-             model.model.diffusion_model.image_size,
-             model.model.diffusion_model.image_size]
+             config.model.params.channels,
+             config.model.params.image_size,
+             config.model.params.image_size]
+    
+#     shape = [batch_size,
+#              model.model.diffusion_model.in_channels,
+#              model.model.diffusion_model.image_size,
+#              model.model.diffusion_model.image_size]
 
     with model.ema_scope("Plotting"):
         t0 = time.time()
@@ -105,7 +110,7 @@ def make_convolutional_sample(model, batch_size, vanilla=False, custom_steps=Non
     print(f'Throughput for this batch: {log["throughput"]}')
     return log
 
-def run(model, logdir, batch_size=50, vanilla=False, custom_steps=None, eta=None, n_samples=50000, nplog=None):
+def run(model, logdir, batch_size=50, vanilla=False, custom_steps=None, eta=None, n_samples=50000, nplog=None, config=None):
     if vanilla:
         print(f'Using Vanilla DDPM sampling with {model.num_timesteps} sampling steps.')
     else:
@@ -122,7 +127,7 @@ def run(model, logdir, batch_size=50, vanilla=False, custom_steps=None, eta=None
         for _ in trange(n_samples // batch_size, desc="Sampling Batches (unconditional)"):
             logs = make_convolutional_sample(model, batch_size=batch_size,
                                              vanilla=vanilla, custom_steps=custom_steps,
-                                             eta=eta)
+                                             eta=eta, config=config)
             n_saved = save_logs(logs, logdir, n_saved=n_saved, key="sample")
             all_images.extend([custom_to_np(logs["sample"])])
             if n_saved >= n_samples:
@@ -248,31 +253,43 @@ if __name__ == "__main__":
     opt, unknown = parser.parse_known_args()
     ckpt = None
 
+    
     if not os.path.exists(opt.resume):
         raise ValueError("Cannot find {}".format(opt.resume))
-    if os.path.isfile(opt.resume):
-        # paths = opt.resume.split("/")
-        try:
-            logdir = '/'.join(opt.resume.split('/')[:-1])
-            # idx = len(paths)-paths[::-1].index("logs")+1
-            print(f'Logdir is {logdir}')
-        except ValueError:
-            paths = opt.resume.split("/")
-            idx = -2  # take a guess: path/to/logdir/checkpoints/model.ckpt
-            logdir = "/".join(paths[:idx])
-        ckpt = opt.resume
-    else:
-        assert os.path.isdir(opt.resume), f"{opt.resume} is not a directory"
-        logdir = opt.resume.rstrip("/")
-        ckpt = os.path.join(logdir, "model.ckpt")
-
+        
+#     if os.path.isfile(opt.resume):
+#         # paths = opt.resume.split("/")
+#         try:
+#             logdir = '/'.join(opt.resume.split('/')[:-1])
+#             # idx = len(paths)-paths[::-1].index("logs")+1
+#             print(f'Logdir is {logdir}')
+            
+            
+#         except ValueError:
+#             paths = opt.resume.split("/")
+#             idx = -2  # take a guess: path/to/logdir/checkpoints/model.ckpt
+#             logdir = "/".join(paths[:idx])
+#         ckpt = opt.resume
+#     else:
+#         assert os.path.isdir(opt.resume), f"{opt.resume} is not a directory"
+#         logdir = opt.resume.rstrip("/")
+#         ckpt = os.path.join(logdir, "model.ckpt")
+    ckpt = opt.resume
+    logdir = opt.logdir
+    
+        
+    print(logdir)
     base_configs = sorted(glob.glob(os.path.join(logdir, "config.yaml")))
     opt.base = base_configs
 
+    
+    print(f"opt base is {opt.base}")
+    
     configs = [OmegaConf.load(cfg) for cfg in opt.base]
     cli = OmegaConf.from_dotlist(unknown)
     config = OmegaConf.merge(*configs, cli)
 
+#     print(f"config is {config} ")
     gpu = True
     eval_mode = True
 
@@ -308,6 +325,6 @@ if __name__ == "__main__":
 
     run(model, imglogdir, eta=opt.eta,
         vanilla=opt.vanilla_sample,  n_samples=opt.n_samples, custom_steps=opt.custom_steps,
-        batch_size=opt.batch_size, nplog=numpylogdir)
+        batch_size=opt.batch_size, nplog=numpylogdir, config=config)
 
     print("done.")

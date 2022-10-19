@@ -168,17 +168,28 @@ class CrossAttention(nn.Module):
         )
 
     def forward(self, x, context=None, mask=None):
+        
+
+        
         h = self.heads
 
         q = self.to_q(x)
+            
         context = default(context, x)
+                
+        
         k = self.to_k(context)
         v = self.to_v(context)
 
+
+
+        
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
 
-        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
 
+        
+        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        
         if exists(mask):
             mask = rearrange(mask, 'b ... -> b (...)')
             max_neg_value = -torch.finfo(sim.dtype).max
@@ -248,7 +259,7 @@ class SpatialTransformer(nn.Module):
                                               padding=0))
 
     def forward(self, x, context=None):
-        # note: if no context is given, cross-attention defaults to self-attention
+            
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)

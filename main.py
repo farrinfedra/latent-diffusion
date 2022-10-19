@@ -10,8 +10,22 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
 from pytorch_lightning.utilities.distributed import rank_zero_only
+import wandb
 
 from taming.data.utils import custom_collate
+
+import subprocess
+
+from pynvml import *
+
+
+def get_nvidia_smi_output():
+    try:
+        info = subprocess.check_output(["nvidia-smi"], stderr=subprocess.STDOUT)
+        info = info.decode("utf8")
+    except Exception as e:
+        info = "Executing nvidia-smi failed: " + str(e)
+    return info.strip() 
 
 
 def get_obj_from_str(string, reload=False):
@@ -102,7 +116,15 @@ def get_parser(**parser_kwargs):
         default="",
         help="post-postfix for default name",
     )
-
+    
+    parser.add_argument(
+        "--scale_lr",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=True,
+        help="scale base-lr by ngpu * batch_size * n_accumulate",
+    )
     return parser
 
 
@@ -137,7 +159,9 @@ class DataModuleFromConfig(pl.LightningDataModule):
         super().__init__()
         self.batch_size = batch_size
         self.dataset_configs = dict()
-        self.num_workers = num_workers if num_workers is not None else batch_size*2
+        
+#         self.num_workers = num_workers if num_workers is not None else batch_size*2
+        self.num_workers = 0 # num_workers if num_workers is not None else 2
         if train is not None:
             self.dataset_configs["train"] = train
             self.train_dataloader = self._train_dataloader
@@ -231,7 +255,7 @@ class ImageLogger(Callback):
 
     @rank_zero_only
     def _wandb(self, pl_module, images, batch_idx, split):
-        raise ValueError("No way wandb")
+#         raise ValueError("No way wandb")
         grids = dict()
         for k in images:
             grid = torchvision.utils.make_grid(images[k])
@@ -310,9 +334,11 @@ class ImageLogger(Callback):
         return False
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+#         pass
         self.log_img(pl_module, batch, batch_idx, split="train")
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+#         pass
         self.log_img(pl_module, batch, batch_idx, split="val")
 
 
@@ -370,6 +396,8 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     opt, unknown = parser.parse_known_args()
+    
+    
     if opt.name and opt.resume:
         raise ValueError(
             "-n/--name and -r/--resume cannot be specified both."
@@ -388,6 +416,8 @@ if __name__ == "__main__":
             assert os.path.isdir(opt.resume), opt.resume
             logdir = opt.resume.rstrip("/")
             ckpt = os.path.join(logdir, "checkpoints", "last.ckpt")
+            
+        print(f"ckpt is {ckpt}")
 
         opt.resume_from_checkpoint = ckpt
         base_configs = sorted(glob.glob(os.path.join(logdir, "configs/*.yaml")))
@@ -417,11 +447,18 @@ if __name__ == "__main__":
         config = OmegaConf.merge(*configs, cli)
         lightning_config = config.pop("lightning", OmegaConf.create())
         # merge trainer cli with config
+        print(lightning_config)
+        
+        
         trainer_config = lightning_config.get("trainer", OmegaConf.create())
         # default to ddp
         trainer_config["distributed_backend"] = "ddp"
+        
+        
+        
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
+            
         if not "gpus" in trainer_config:
             del trainer_config["distributed_backend"]
             cpu = True
@@ -429,12 +466,20 @@ if __name__ == "__main__":
             gpuinfo = trainer_config["gpus"]
             print(f"Running on GPUs {gpuinfo}")
             cpu = False
+            
+        print(trainer_config)
         trainer_opt = argparse.Namespace(**trainer_config)
         lightning_config.trainer = trainer_config
-
+        print('after configs')
+        print(config)
         # model
         model = instantiate_from_config(config.model)
-
+        
+#         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#         model.to(device)
+        
+        
+        print('after model init')
         # trainer and callbacks
         trainer_kwargs = dict()
 
@@ -519,7 +564,16 @@ if __name__ == "__main__":
         callbacks_cfg = lightning_config.callbacks or OmegaConf.create()
         callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg)
         trainer_kwargs["callbacks"] = [instantiate_from_config(callbacks_cfg[k]) for k in callbacks_cfg]
+        
+        trainer_kwargs['num_nodes'] = 1
+        trainer_kwargs['gpus'] = 1
 
+#         print('****************')
+#         print(trainer_kwargs)
+#         print(trainer_opt)
+#         print(type(trainer_opt))
+#         print('****************')
+        
         trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)
 
         # data
@@ -534,15 +588,36 @@ if __name__ == "__main__":
         bs, base_lr = config.data.params.batch_size, config.model.base_learning_rate
         if not cpu:
             ngpu = len(lightning_config.trainer.gpus.strip(",").split(','))
+            print(f"number of gpus is {ngpu}")
         else:
             ngpu = 1
         accumulate_grad_batches = lightning_config.trainer.accumulate_grad_batches or 1
         print(f"accumulate_grad_batches = {accumulate_grad_batches}")
         lightning_config.trainer.accumulate_grad_batches = accumulate_grad_batches
-        model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
-        print("Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} (base_lr)".format(
-            model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
+        
+        
+        if opt.scale_lr:
+            model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
+            print(
+                "Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} (base_lr)".format(
+                    model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
+        else:
+            model.learning_rate = base_lr
+            print("++++ NOT USING LR SCALING ++++")
+            print(f"Setting learning rate to {model.learning_rate:.2e}")
+        
+        
+#         model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
+#         print("Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} (base_lr)".format(
+#             model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
 
+        print('before nvidia smi output')
+        get_nvidia_smi_output()
+        print('after nvidia smi output')
+#         print(!nvidia-smi)
+        
+        
+        
         # allow checkpointing via USR1
         def melk(*args, **kwargs):
             # run all checkpoint hooks
@@ -560,6 +635,19 @@ if __name__ == "__main__":
         signal.signal(signal.SIGUSR2, divein)
 
         # run
+        print('*************************')
+        print(trainer)
+        print(model.device)
+        print('*************************')
+
+        nvmlInit()
+        h = nvmlDeviceGetHandleByIndex(0)
+        info = nvmlDeviceGetMemoryInfo(h)
+        print(f'total init    : {info.total}')
+        print(f'free init  : {info.free}')
+        print(f'used init    : {info.used}')
+        
+        
         if opt.train:
             try:
                 trainer.fit(model, data)
